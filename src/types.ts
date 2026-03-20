@@ -1,11 +1,14 @@
-export interface Post {
+export interface PostMeta {
   id: string;
   title: string;
   date: string;
   excerpt: string;
-  content: string;
   tags: string[];
   author: string;
   readTime: string;
   image?: string;
+}
+
+export interface Post extends PostMeta {
+  content: string;
 }
