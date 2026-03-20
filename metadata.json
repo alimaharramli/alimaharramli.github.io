@@ -1,0 +1,5 @@
+{
+  "name": "Terminal Blog",
+  "description": "A personal blog with a terminal/cyberpunk aesthetic, built with React and Markdown.",
+  "requestFramePermissions": []
+}
