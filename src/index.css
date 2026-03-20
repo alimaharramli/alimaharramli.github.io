@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply font-mono;
+  }
+}
+
+.markdown-body h1 { @apply text-3xl font-bold mb-4 text-[#9cff93] uppercase tracking-tighter; }
+.markdown-body h2 { @apply text-2xl font-bold mb-3 text-[#9cff93] uppercase tracking-tighter mt-8 border-b border-[#9cff93]/10 pb-2; }
+.markdown-body h3 { @apply text-xl font-bold mb-2 text-[#00f1fe] uppercase tracking-tighter mt-6; }
+.markdown-body p { @apply mb-4 text-slate-300 leading-relaxed; }
+.markdown-body ul { @apply list-disc list-inside mb-4 text-slate-300; }
+.markdown-body ol { @apply list-decimal list-inside mb-4 text-slate-300; }
+.markdown-body li { @apply mb-1; }
+.markdown-body blockquote { @apply border-l-4 border-[#9cff93]/30 pl-4 py-2 italic bg-[#131313] mb-4 text-slate-400; }
+.markdown-body code { @apply bg-[#262626] px-1.5 py-0.5 rounded text-[#00f1fe] font-bold; }
+.markdown-body pre { @apply bg-black p-6 border border-white/10 overflow-x-auto mb-6 text-sm leading-relaxed; }
+.markdown-body pre code { @apply bg-transparent p-0 text-slate-300 font-normal; }
+.markdown-body strong { @apply text-[#9cff93] font-bold; }
+.markdown-body a { @apply text-[#00f1fe] hover:underline; }
