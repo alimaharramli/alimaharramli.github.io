@@ -99,7 +99,7 @@ export function LayoutShell({
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
-  const [crtEffect, setCrtEffect] = useState(true);
+  const [crtEffect, setCrtEffect] = useState(false);
   const [scanlines, setScanlines] = useState(true);
 
   const router = useRouter();

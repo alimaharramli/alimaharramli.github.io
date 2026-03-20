@@ -3,7 +3,7 @@
 
 @theme {
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --animate-crt-flicker: crt-flicker 0.15s infinite;
+  --animate-crt-flicker: crt-flicker 0.5s infinite;
 
   @keyframes crt-flicker {
     0%   { opacity: 1; }
