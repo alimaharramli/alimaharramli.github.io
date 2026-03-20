@@ -1,8 +1,15 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
 @theme {
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --animate-crt-flicker: crt-flicker 0.15s infinite;
+
+  @keyframes crt-flicker {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.97; }
+    100% { opacity: 1; }
+  }
 }
 
 @layer base {
