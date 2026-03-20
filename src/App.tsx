@@ -70,9 +70,49 @@ export default function App() {
     return attributes;
   }, []);
 
+  // Resolve the post matching the current URL hash (e.g. #/blog/:id)
+  const getPostFromHash = useCallback((hash: string, postList: Post[]) => {
+    const match = hash.match(/^#\/blog\/(.+)$/);
+    if (match) {
+      return postList.find(p => p.id === match[1]) ?? null;
+    }
+    return null;
+  }, []);
+
+  // Open a post and update the URL
+  const handleSelectPost = useCallback((post: Post) => {
+    setSelectedPost(post);
+    window.history.pushState(null, '', `#/blog/${post.id}`);
+  }, []);
+
+  // Go back to home and clear the URL hash
+  const handleGoHome = useCallback(() => {
+    setSelectedPost(null);
+    window.history.pushState(null, '', window.location.pathname + window.location.search);
+  }, []);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // On mount, open the post that matches the URL hash (direct link support)
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const post = getPostFromHash(window.location.hash, posts);
+    // Explicitly set null when no post matches (empty or unknown hash = home view)
+    setSelectedPost(post ?? null);
+  }, [posts, getPostFromHash]);
+
+  // Handle browser back / forward navigation
+  useEffect(() => {
+    const handlePopstate = () => {
+      // getPostFromHash returns null for empty/unrecognised hash → home view
+      const post = getPostFromHash(window.location.hash, posts);
+      setSelectedPost(post ?? null);
+    };
+    window.addEventListener('popstate', handlePopstate);
+    return () => window.removeEventListener('popstate', handlePopstate);
+  }, [posts, getPostFromHash]);
 
   const showToast = (message: string, type: 'success' | 'info' = 'success') => {
     setToast({ message, type });
@@ -80,7 +120,7 @@ export default function App() {
   };
 
   const handleShare = useCallback((post: Post) => {
-    const url = window.location.href;
+    const url = `${window.location.origin}${window.location.pathname}#/blog/${post.id}`;
     const text = `Check out this log: ${post.title}`;
     
     // Try native share first
@@ -101,7 +141,7 @@ export default function App() {
   }, []);
 
   const handleSocialShare = (platform: 'twitter' | 'linkedin', post: Post) => {
-    const url = encodeURIComponent(window.location.href);
+    const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}#/blog/${post.id}`);
     const text = encodeURIComponent(`[LOG_ENTRY] ${post.title}\n\n${post.excerpt}\n\n`);
     let shareUrl = '';
 
@@ -125,7 +165,7 @@ export default function App() {
   };
 
   const scrollToSection = (id: string) => {
-    setSelectedPost(null);
+    handleGoHome();
     setTimeout(() => {
       const element = document.getElementById(id);
       if (element) {
@@ -183,7 +223,7 @@ export default function App() {
         <div className="flex justify-between items-center px-6 h-16 w-full max-w-7xl mx-auto">
           <div 
             className="flex items-center gap-2 cursor-pointer group"
-            onClick={() => setSelectedPost(null)}
+            onClick={() => handleGoHome()}
           >
             <div className="w-8 h-8 bg-[#9cff93]/10 flex items-center justify-center border border-[#9cff93]/30 group-hover:bg-[#9cff93]/20 transition-all">
               <Terminal size={18} className="text-[#9cff93]" />
@@ -195,7 +235,7 @@ export default function App() {
           
           <nav className="hidden md:flex gap-8 items-center">
             <button 
-              onClick={() => setSelectedPost(null)}
+              onClick={() => handleGoHome()}
               className={cn(
                 "text-xs tracking-widest uppercase transition-colors duration-300",
                 !selectedPost ? "text-[#9cff93] font-bold" : "text-slate-400 hover:text-[#00f1fe]"
@@ -398,7 +438,7 @@ export default function App() {
                       <PostCard 
                         key={post.id} 
                         post={post} 
-                        onClick={() => setSelectedPost(post)} 
+                        onClick={() => handleSelectPost(post)} 
                       />
                     ))}
                   </div>
@@ -503,7 +543,7 @@ export default function App() {
 
                 <footer className="pt-12 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6">
                   <button 
-                    onClick={() => setSelectedPost(null)}
+                    onClick={() => handleGoHome()}
                     className="group flex items-center gap-4 text-[#9cff93] font-bold tracking-tighter uppercase transition-all"
                   >
                     <ArrowLeft size={20} className="transition-transform group-hover:-translate-x-2" />
