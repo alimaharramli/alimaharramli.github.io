@@ -534,7 +534,7 @@ export default function App() {
       <footer className="w-full py-12 border-t border-[#9cff93]/10 bg-[#0e0e0e]">
         <div className="flex flex-col md:flex-row justify-between items-center px-8 gap-4 max-w-7xl mx-auto">
           <div className="text-[10px] uppercase tracking-[0.2em] text-[#9cff93]">
-            © 2024 TERMINAL_OS // ALL RIGHTS RESERVED
+            © 2026 TERMINAL_OS // ALL RIGHTS RESERVED
           </div>
           <div className="flex flex-wrap justify-center gap-6">
             <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
