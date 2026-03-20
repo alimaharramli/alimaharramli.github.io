@@ -1,6 +1,6 @@
 ---
 title: "SYSTEM_TERMINAL"
-author: "ROOT_USER"
+author: "ALI MAHARRAMLI"
 description: "Crafting digital tools for security and speed. Full-stack architect specializing in encrypted systems."
 stats:
   uptime: "142:12:08:44"
@@ -9,10 +9,10 @@ stats:
   encryption: "AES-256"
 links:
   - label: "GitHub Repository"
-    url: "https://github.com"
+    url: "https://github.com/alimaharramli"
     icon: "github"
   - label: "LinkedIn Profile"
-    url: "https://linkedin.com"
+    url: "https://www.linkedin.com/in/ali-maharramli/"
     icon: "linkedin"
   - label: "Mainframe Node"
     url: "#"
