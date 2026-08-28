@@ -6,7 +6,6 @@ import type { Post, PostMeta, SiteConfig } from '@/types';
 const contentDir = path.join(process.cwd(), 'src', 'content');
 const POST_EXT = '.md';
 
-/** Only allow slug-safe characters to prevent path traversal. */
 function isSafeId(id: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(id);
 }
@@ -46,4 +45,3 @@ export function getPost(id: string): Post | null {
   const { attributes, body } = fm<PostMeta>(raw);
   return { ...attributes, content: body };
 }
-

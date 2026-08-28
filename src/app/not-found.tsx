@@ -1,19 +1,11 @@
-'use client';
-
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 
 export default function NotFound() {
   return (
-    <div className="flex flex-col items-center justify-center py-32 gap-6">
-      <span className="text-[#9cff93] text-6xl font-black">404</span>
-      <p className="text-slate-400 text-sm uppercase tracking-widest">LOG_NOT_FOUND</p>
-      <Link
-        href="/"
-        className="flex items-center gap-2 text-[#9cff93] font-bold uppercase tracking-tighter"
-      >
-        <ArrowLeft size={16} /> BACK_TO_TERMINAL
-      </Link>
+    <div className="section-pad" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+      <span style={{ fontSize: 48, fontWeight: 700, color: 'var(--fg)' }}>404</span>
+      <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--muted)', letterSpacing: '.1em', textTransform: 'uppercase' }}>Page not found</p>
+      <Link href="/" className="post-back" style={{ marginTop: 16 }}>← Back to home</Link>
     </div>
   );
 }

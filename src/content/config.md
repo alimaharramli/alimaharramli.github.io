@@ -1,25 +1,20 @@
 ---
-title: "SYSTEM_TERMINAL"
-author: "ALI MAHARRAMLI"
-description: "Crafting digital tools for security and speed. Full-stack architect specializing in encrypted systems."
-stats:
-  uptime: "142:12:08:44"
-  latency: "14MS"
-  memory: "64GB / 128GB"
-  encryption: "AES-256"
+title: "Ali Maharramli"
+subtitle: "Security Engineer"
+bio:
+  - "Security engineer working at the intersection of application security and infrastructure."
+bio_note: "Edit this file to update your bio, credentials, projects, and contact info."
+credentials: []
+details:
+  focus: "appsec · identity"
+  stack: "Go · Rust · Postgres"
+  based in: "Baku, AZ"
+projects: []
 links:
-  - label: "GitHub Repository"
-    url: "https://github.com/alimaharramli"
-    icon: "github"
-  - label: "LinkedIn Profile"
-    url: "https://www.linkedin.com/in/ali-maharramli/"
-    icon: "linkedin"
-  - label: "Mainframe Node"
-    url: "#"
-    icon: "terminal"
-  - label: "Public Assets"
-    url: "#"
-    icon: "database"
+  github: "https://github.com/alimaharramli"
+  x: "https://x.com"
+  linkedin: "https://www.linkedin.com/in/ali-maharramli/"
+contact:
+  email: "hello@example.com"
+  github: "@alimaharramli"
 ---
-# Site Configuration
-This file controls the global site settings.

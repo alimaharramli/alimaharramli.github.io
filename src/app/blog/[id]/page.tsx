@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getAllPostIds, getPost } from '@/lib/content';
+import { getAllPostIds, getAllPosts, getPost } from '@/lib/content';
 import { PostPageClient } from '@/components/PostPage';
 
-export async function generateStaticParams() {
+export const dynamicParams = false;
+
+export function generateStaticParams() {
   return getAllPostIds().map((id) => ({ id }));
 }
 
@@ -29,5 +31,11 @@ export default async function Page({
   const { id } = await params;
   const post = getPost(id);
   if (!post) notFound();
-  return <PostPageClient post={post} />;
+
+  const posts = getAllPosts();
+  const idx = posts.findIndex((p) => p.id === id);
+  const prevPost = idx > 0 ? posts[idx - 1] : null;
+  const nextPost = idx >= 0 && idx < posts.length - 1 ? posts[idx + 1] : null;
+
+  return <PostPageClient post={post} prevPost={prevPost} nextPost={nextPost} />;
 }
