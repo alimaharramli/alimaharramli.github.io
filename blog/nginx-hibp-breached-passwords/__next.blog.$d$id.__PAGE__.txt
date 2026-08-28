@@ -1,0 +1,165 @@
+1:"$Sreact.fragment"
+2:I[65038,["/_next/static/chunks/0e97-zyh3gyza.js","/_next/static/chunks/0d3shmwh5_nmn.js","/_next/static/chunks/07o3awoujow-7.js"],"PostPageClient"]
+6:I[97367,["/_next/static/chunks/0e97-zyh3gyza.js","/_next/static/chunks/0d3shmwh5_nmn.js"],"OutletBoundary"]
+7:"$Sreact.suspense"
+3:T1d82,Most applications do not check whether a user's password has appeared in a data breach. The ones that do typically bolt it on as an aftermarket feature inside the application code. That means every application behind your load balancer needs its own implementation, its own HIBP integration, its own error handling.
+
+I wanted to push this check down to the reverse proxy. One NGINX module, sitting in front of every application, that silently checks every login against [Have I Been Pwned](https://haveibeenpwned.com/Passwords) and fires a webhook when it finds a match. No application code changes. The app does not even know it is happening.
+
+The result is [nginx_hibp](https://github.com/alimaharramli/nginx_hibp), a custom NGINX module written in C.
+
+### How it works
+
+The module hooks into two points in NGINX's request processing pipeline: the **request body filter** and the **response header filter**.
+
+The request body filter fires when the client sends a POST body. The module reads the body, looks for a password field, and if it finds one, hashes it with SHA-1 and checks it against the HIBP API. But it does not block the request or modify it. It just sets a flag.
+
+The response header filter fires when the upstream application sends back its response headers. At that point the module knows both the password hash and the response status code. If the status code matches a configured value (usually 302, meaning a successful login redirect), and the password was found in HIBP, it logs the event and sends a webhook.
+
+This two-phase approach is important. The module never blocks or delays the login flow. It never modifies the request or the response. From the user's perspective and the application's perspective, nothing changes. The check happens in the background.
+
+### The k-anonymity trick
+
+You obviously cannot send a full password hash to a third-party API. The HIBP Pwned Passwords API solves this with [k-anonymity](https://www.troyhunt.com/ive-just-launched-pwned-passwords-version-2/). You send only the first 5 characters of the SHA-1 hash. The API returns every known breached hash that shares that prefix. Your code then checks locally whether the full hash is in the returned set.
+
+Here is what that looks like in the module:
+
+```c
+// SHA-1 hash the password
+unsigned char hash[SHA_DIGEST_LENGTH];
+SHA1((unsigned char *)password, strlen(password), hash);
+char hex_hash[SHA_DIGEST_LENGTH * 2 + 1];
+for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+    sprintf(&hex_hash[i * 2], "%02x", hash[i]);
+}
+
+// Split into prefix (first 5 chars) and suffix
+char prefix[6], suffix[36];
+strncpy(prefix, hex_hash, 5);
+prefix[5] = '\0';
+strcpy(suffix, hex_hash + 5);
+
+// Only the prefix leaves our system
+if (check_hibp(r, prefix, suffix)) {
+    conf->should_log = 1;
+}
+```
+
+The `check_hibp` function sends the 5-character prefix to the API and gets back a list of matching suffixes. It then compares locally:
+
+```c
+snprintf(url, sizeof(url),
+    "https://api.pwnedpasswords.com/range/%s", prefix);
+// ...
+char *line = strtok(chunk.memory, "\r\n");
+while (line != NULL) {
+    if (strncasecmp(line, suffix, strlen(suffix)) == 0) {
+        found = 1;
+        break;
+    }
+    line = strtok(NULL, "\r\n");
+}
+```
+
+The full hash never leaves the server. The API sees a 5-character prefix that matches roughly 500 other hashes. There is no way to determine which one is the actual password.
+
+### Parsing login requests
+
+The module needs to find the password in the request body. Login forms come in two flavors: URL-encoded form data and JSON. The module handles both.
+
+For form data (`application/x-www-form-urlencoded`), it splits on `&` and `=` to find the password field:
+
+```c
+char *pair = strtok_r(data, "&", &saveptr1);
+while (pair) {
+    char *key = strtok_r(pair, "=", &saveptr2);
+    if (key) {
+        char *value = strtok_r(NULL, "=", &saveptr2);
+        if (strcmp(key, "password") == 0) {
+            password = strdup(value);
+        }
+    }
+    pair = strtok_r(NULL, "&", &saveptr1);
+}
+```
+
+For JSON (`application/json`), it uses jansson to parse the body and pull out the password field:
+
+```c
+json_t *root = json_loadb((const char *)cur->buf->pos,
+    ngx_buf_size(cur->buf), 0, &error);
+json_t *json_password = json_object_get(root, "password");
+if (json_password && json_is_string(json_password))
+    password = strdup(json_string_value(json_password));
+```
+
+The field names are configurable. If your login form uses `passwd` instead of `password`, you set `cred_alert_password_field "passwd"` in the NGINX config.
+
+### What happens when a breach is found
+
+When the module detects a breached password on a successful login, two things happen.
+
+First, it writes a log entry:
+
+```
+[2025-03-01 22:12:07] 172.21.0.1 - localhost - POST - /login - admin - 5baa61e4...8fd8 - 302
+```
+
+Second, if a webhook URL is configured, it sends a JSON payload:
+
+```json
+{
+  "password_hash": "5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8",
+  "username": "admin",
+  "request_uri": "/login",
+  "remote_ip": "172.21.0.1",
+  "method": "POST",
+  "status_code": 302,
+  "host": "localhost"
+}
+```
+
+You can point this at Slack, PagerDuty, a SIEM, or anything that accepts webhooks. The idea is that your security team gets a notification every time someone logs in with a known-breached password, without the application having to implement anything.
+
+### Configuration
+
+Setting it up is a few lines in your NGINX location block:
+
+```nginx
+location /login {
+    cred_alert_target_url "https://hooks.slack.com/your-webhook";
+    cred_alert_log_file "/var/log/nginx/cred_alert.log";
+    cred_alert_uri_filter "/login";
+    cred_alert_status_filter 302;
+
+    proxy_pass http://backend;
+}
+```
+
+`uri_filter` limits the check to login endpoints only. `status_filter` limits it to successful logins (the module ignores failed attempts since those passwords are not in active use). You can also override the HIBP API URL if you are running a local mirror of the dataset with `cred_alert_hibp_url`.
+
+There is a Docker image if you do not want to compile NGINX from source:
+
+```bash
+docker pull ghcr.io/alimaharramli/nginx_hibp:main
+```
+
+### Why do this at the proxy layer
+
+The obvious question is why not just add the HIBP check to the application. Three reasons.
+
+**Coverage.** If you have five services behind one NGINX instance, the module covers all of them. Writing the check into each application means five implementations, five sets of tests, five things to maintain.
+
+**Zero application changes.** The module works with any backend. Django, Rails, a Go service, a legacy PHP app that nobody wants to touch. It does not matter. If the login goes through NGINX, the module sees it.
+
+**Separation of concerns.** The application handles authentication. The module handles breach detection. The application does not need to know about HIBP. It does not need to handle API failures or rate limits. The module does all of that independently, and if it fails, the login still works normally.
+
+### Limitations
+
+The module makes a synchronous HTTP call to the HIBP API (or your local mirror) during request processing. On a high-traffic login endpoint, this adds latency. For most deployments this is fine because the check only runs on login requests, not every request, and the HIBP API responds in under 100ms. But if you are processing thousands of logins per second, you would want to make the check async or use a local copy of the Pwned Passwords dataset.
+
+The code is [on GitHub](https://github.com/alimaharramli/nginx_hibp) if you want to try it or contribute.
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"post":{"id":"nginx-hibp-breached-passwords","title":"Checking breached passwords at the reverse proxy","date":"2025-03-01","tag":"security","readTime":"8 min read","excerpt":"I wrote an NGINX module in C that intercepts login requests and checks passwords against Have I Been Pwned before they reach the application. No application changes needed. The password hash never leaves your infrastructure.","content":"$3"},"prevPost":{"id":"ebpf-android-tracing","title":"Invisible app tracing on Android with eBPF","date":"2025-05-14","tag":"security","readTime":"12 min read","excerpt":"I built a custom Android kernel with eBPF support, booted it in a Cuttlefish sandbox, and used kernel-level tracing to monitor apps without them knowing. Then I caught a Sudoku game quietly sending my location to ad networks."},"nextPost":null}],["$L4"],"$L5"]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"JY4i_lEYy32MEkfKc2GHH"}
+4:["$","script","script-0",{"src":"/_next/static/chunks/07o3awoujow-7.js","async":true}]
+5:["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]
+8:null

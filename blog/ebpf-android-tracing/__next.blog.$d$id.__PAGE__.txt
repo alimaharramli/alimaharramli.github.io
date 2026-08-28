@@ -1,0 +1,133 @@
+1:"$Sreact.fragment"
+2:I[65038,["/_next/static/chunks/0e97-zyh3gyza.js","/_next/static/chunks/0d3shmwh5_nmn.js","/_next/static/chunks/07o3awoujow-7.js"],"PostPageClient"]
+6:I[97367,["/_next/static/chunks/0e97-zyh3gyza.js","/_next/static/chunks/0d3shmwh5_nmn.js"],"OutletBoundary"]
+7:"$Sreact.suspense"
+3:T269f,If you want to watch what an Android app does at runtime, you probably reach for Frida. Attach to the process, hook some functions, read the output. It works. It also leaves fingerprints everywhere.
+
+Advanced apps look for Frida. They scan for its server process. They check for named pipes. They look for Xposed classes loaded into their memory space. Some of them even time their own execution to detect the overhead of ptrace-based tracing. When they find any of it, they change behavior or just crash.
+
+I wanted a setup where the app has no idea it is being watched. The answer turned out to be eBPF, running inside the kernel of a virtual Android device.
+
+### The idea
+
+Instead of instrumenting the app, instrument the kernel. eBPF programs attach to kernel functions and tracepoints. They run in a verified sandbox inside the kernel itself, so they cannot crash the system and they never touch the app's process memory. From the app's perspective, nothing is different. No debugger is attached. No hooks exist in its address space. No suspicious processes show up in a process listing.
+
+The tricky part is that Android kernels ship with eBPF support disabled or locked down. Consumer devices do not let you attach kprobes or load arbitrary BPF programs. So I needed a place to run Android with a custom kernel.
+
+That place is Cuttlefish.
+
+### Cuttlefish as an Android sandbox
+
+Cuttlefish is Google's virtual Android device. It runs a full Android stack on top of KVM, and it is the canonical reference device for AOSP. Unlike the old QEMU-based emulator, Cuttlefish uses crosvm for virtualization and closely resembles a real device. More importantly, it lets you swap in your own kernel.
+
+![Cuttlefish architecture](/images/ebpf-android/cuttlefish-arch.png)
+
+I downloaded an Android 12 system image for x86_64 and set up Cuttlefish on an Ubuntu host. Once launched, the virtual device boots into a standard Android environment, accessible through VNC and ADB.
+
+![Cuttlefish running Android 12](/images/ebpf-android/cuttlefish-vnc.png)
+
+### Building the kernel
+
+This was the core of the work. I took the Android 4.19-stable kernel branch (the common kernel for Android 12) and enabled everything eBPF needs. The default Android kernel config has most of this turned off.
+
+The key changes:
+
+- **BPF core:** `CONFIG_BPF=y`, `CONFIG_BPF_SYSCALL=y`, `CONFIG_BPF_JIT=y`, `CONFIG_HAVE_EBPF_JIT=y`, `CONFIG_BPF_EVENTS=y`
+- **Kprobes and kretprobes:** `CONFIG_KPROBES=y`, `CONFIG_KPROBE_EVENT=y`, `CONFIG_KRETPROBES=y`
+- **Uprobes:** `CONFIG_UPROBES=y`, `CONFIG_UPROBE_EVENT=y` (needed for hooking user-space libraries from the kernel)
+- **Tracing infrastructure:** `CONFIG_TRACEPOINTS`, `CONFIG_FTRACE`, `CONFIG_DEBUG_FS`
+- **Kernel headers available at runtime:** `CONFIG_IKHEADERS=m` so BCC can compile programs on the fly using `/sys/kernel/kheaders.tar.xz`
+
+I also had to disable `CONFIG_SHADOW_CALL_STACK` and `CONFIG_RANDOMIZE_BASE`, and set `CONFIG_ROP_PROTECTION_NONE` to let kprobes work without restrictions.
+
+![Kernel configuration script](/images/ebpf-android/kernel-config.png)
+
+After configuring, I compiled it with Android's build system:
+
+```bash
+BUILD_CONFIG=common/build.config.gki_kprobes.x86_64 build/build.sh
+```
+
+This produced a `bzImage` and an `initramfs.img`. I told Cuttlefish to boot with my kernel instead of the stock one:
+
+![Launching Cuttlefish with custom kernel](/images/ebpf-android/cvd-launch.png)
+
+Once it booted, `uname -r` confirmed the custom kernel was running:
+
+![uname output showing custom kernel](/images/ebpf-android/uname-output.png)
+
+### Getting eBPF tools inside Android
+
+Android's userspace is not a normal Linux environment. There is no package manager, no gcc, no standard library paths. I used [eadb](https://github.com/tiann/eadb) to set up a Debian chroot inside the running device. eadb downloads a pre-built Debian rootfs, pushes it to the device over ADB, and chroots into it. This gave me apt, a proper shell, and everything I needed to compile BCC from source and install bpftrace.
+
+![BCC and bpftrace installation](/images/ebpf-android/bcc-install.png)
+
+With BCC installed, I had access to `execsnoop`, `tcpconnect`, and other tools that ship with it. I also grabbed [eCapture](https://github.com/gojue/ecapture), which uses eBPF uprobes to capture plaintext from TLS connections without needing a proxy certificate.
+
+### What the kernel sees
+
+**execsnoop** hooks `sys_execve` and logs every process execution on the system. Launch an app that shells out to `/system/bin/sh` and you see it immediately. This is useful for catching apps that spawn unexpected child processes.
+
+**tcpconnect** hooks `tcp_v4_connect` and logs every outbound TCP connection with the source process, destination IP, and port. Every connection attempt is logged, even ones that fail.
+
+![tcpconnect catching network connections](/images/ebpf-android/tcpconnect.png)
+
+**eCapture** is the interesting one. It attaches uprobes to `SSL_write` and `SSL_read` inside the TLS library (BoringSSL on Android). When an app makes an HTTPS request, eCapture reads the plaintext before it gets encrypted and after it gets decrypted. No proxy. No certificate. No modification to the app.
+
+![How eCapture intercepts TLS](/images/ebpf-android/tls-flow.png)
+
+I tested this by having an app make an HTTPS request to Google. eCapture captured the full HTTP response headers and body in plaintext:
+
+![eCapture capturing decrypted HTTPS traffic](/images/ebpf-android/ecapture-tls.png)
+
+The app had no way to tell. eCapture's eBPF probes run inside the kernel and the output goes straight to a log file. Nothing is injected into the app's process, no proxy sits in the network path, and no certificate is installed on the device.
+
+### Testing stealth against a commercial security SDK
+
+To check whether the sandbox is actually invisible, I installed an app that uses a commercial mobile security SDK. These SDKs look for Frida, Xposed, Magisk, SuperSU, BusyBox, root binaries, dangerous props, developer keys, and emulator artifacts. If they find anything, the app can refuse to run or change its behavior.
+
+The SDK detected one thing: the emulator. That is expected because Cuttlefish is a virtual device. The trust score came back at 10 out of 120, classified as "Low" trust.
+
+![Security SDK trust score](/images/ebpf-android/trust-score.png)
+
+More importantly, look at the full telemetry the SDK reported back:
+
+![SDK telemetry showing all-clear](/images/ebpf-android/sdk-telemetry.png)
+
+Every check returned `false`. No Frida. No Xposed. No Magisk. No SuperSU. No BusyBox. No root binaries. No dangerous properties. No tampering detected. Despite the fact that we were running a heavily modified kernel with kprobes, uprobes, BCC, and active eBPF programs attached to system calls.
+
+The kernel-level instrumentation is completely outside the app's observable universe.
+
+### Catching a Sudoku game phoning home
+
+With the sandbox working and confirmed stealthy, I wanted to test it against a real app doing something sketchy. Tim Schumacher's [research on in-app ad tracking](https://timsh.org/tracking-myself-down-through-in-app-ads/) had shown how mobile games quietly exfiltrate location and device data through advertising SDKs. I picked "Killer Sudoku", a game known for its aggressive ad behavior, and ran it in the sandbox.
+
+![Killer Sudoku in the sandbox](/images/ebpf-android/killer-sudoku.png)
+
+I installed it in the sandbox, launched it, and ran tcpconnect and eCapture in the background. Within the first minute of launch, tcpconnect showed a burst of outbound connections. The game was reaching out to multiple third-party ad domains before the user had even tapped anything.
+
+eCapture intercepted the HTTPS payloads. One of the ad network requests contained this:
+
+![Data payload sent by the ad SDK](/images/ebpf-android/ad-tracker-json.png)
+
+The app was sending my IP address, approximate GPS coordinates, carrier name, connection type, a vendor identifier, and a device model string. The `uc` field (user consent for tracking) was set to `"1"` (true) despite the fact that I never granted consent. Location Services were disabled, but the SDK derived coordinates from IP geolocation.
+
+The full captured HTTP request was massive. Over 3,600 bytes of tracking metadata packed into a single ad request:
+
+![Full intercepted ad tracking request](/images/ebpf-android/ecapture-ad-request.png)
+
+Schumacher's research had documented over 200 distinct data fields in Unity Ads requests from similar apps. I saw the same pattern here. Screen brightness, battery level, memory usage, heap size, whether a headset was plugged in. At least 20 distinct ID tokens were being transmitted, enough to fingerprint the device across apps and sessions even without the official advertising ID.
+
+The data flowed through a chain of intermediaries. The game's Unity Ads SSP sent data to a Moloco DSP, which forwarded to the advertiser. One request to Facebook's ad network included the device IP and a timestamp, data points that could link the activity to a household even without Facebook being installed on the device.
+
+All of this was captured transparently by the kernel. The app ran normally. It did not change its behavior. It did not detect the monitoring. And every outbound connection, every TLS payload, every spawned process was logged.
+
+### What I took away from this
+
+The setup is not trivial. Building a custom kernel, configuring Cuttlefish, setting up a Debian chroot, and compiling BCC from source takes real effort. But the result is an analysis environment that apps genuinely cannot distinguish from a clean device, while every syscall, every network connection, and every TLS payload is recorded.
+
+For malware analysis, privacy auditing, or just finding out what an app does when it thinks nobody is watching, kernel-level tracing with eBPF is hard to beat.
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"post":{"id":"ebpf-android-tracing","title":"Invisible app tracing on Android with eBPF","date":"2025-05-14","tag":"security","readTime":"12 min read","excerpt":"I built a custom Android kernel with eBPF support, booted it in a Cuttlefish sandbox, and used kernel-level tracing to monitor apps without them knowing. Then I caught a Sudoku game quietly sending my location to ad networks.","content":"$3"},"prevPost":{"id":"penpot-arbitrary-file-read","title":"Reading /etc/passwd by uploading a font to Penpot","date":"2026-02-16","tag":"security","readTime":"5 min read","excerpt":"I found an arbitrary file read in Penpot's font upload endpoint. The server trusted that font data chunks were actual file uploads, but io/input-stream treats bare strings as file paths. Sending /etc/passwd as a font chunk reads the file and stores it as a downloadable asset."},"nextPost":{"id":"nginx-hibp-breached-passwords","title":"Checking breached passwords at the reverse proxy","date":"2025-03-01","tag":"security","readTime":"8 min read","excerpt":"I wrote an NGINX module in C that intercepts login requests and checks passwords against Have I Been Pwned before they reach the application. No application changes needed. The password hash never leaves your infrastructure."}}],["$L4"],"$L5"]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"JY4i_lEYy32MEkfKc2GHH"}
+4:["$","script","script-0",{"src":"/_next/static/chunks/07o3awoujow-7.js","async":true}]
+5:["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]
+8:null
