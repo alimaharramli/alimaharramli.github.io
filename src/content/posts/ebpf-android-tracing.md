@@ -4,7 +4,7 @@ title: "Invisible app tracing on Android with eBPF"
 date: "2025-05-14"
 tag: "security"
 readTime: "12 min read"
-excerpt: "I built a custom Android kernel with eBPF support, booted it in a Cuttlefish sandbox, and used kernel-level tracing to monitor apps without them knowing. Then I caught a Sudoku game quietly sending my location to ad networks."
+excerpt: "I built a custom Android kernel with eBPF support, booted it in a Cuttlefish sandbox, and used kernel-level tracing to monitor apps without them knowing. Then I caught a mobile game quietly sending my location to ad networks."
 ---
 
 If you want to watch what an Android app does at runtime, you probably reach for Frida. Attach to the process, hook some functions, read the output. It works. It also leaves fingerprints everywhere.
@@ -103,13 +103,13 @@ Every check returned `false`. No Frida. No Xposed. No Magisk. No SuperSU. No Bus
 
 The kernel-level instrumentation is completely outside the app's observable universe.
 
-### Catching a Sudoku game phoning home
+### Catching a game phoning home
 
-With the sandbox working and confirmed stealthy, I wanted to test it against a real app doing something sketchy. Tim Schumacher's [research on in-app ad tracking](https://timsh.org/tracking-myself-down-through-in-app-ads/) had shown how mobile games quietly exfiltrate location and device data through advertising SDKs. I picked "Killer Sudoku", a game known for its aggressive ad behavior, and ran it in the sandbox.
+With the sandbox working and confirmed stealthy, I wanted to test it against a real app doing something sketchy. Tim Schumacher's [research on in-app ad tracking](https://timsh.org/tracking-myself-down-through-in-app-ads/) had shown how mobile games quietly exfiltrate location and device data through advertising SDKs. I picked a game known for aggressive ad behavior and ran it in the sandbox.
 
-![Killer Sudoku in the sandbox](/images/ebpf-android/killer-sudoku.png)
+![The game running in the sandbox](/images/ebpf-android/killer-sudoku.png)
 
-I installed it in the sandbox, launched it, and ran tcpconnect and eCapture in the background. Within the first minute of launch, tcpconnect showed a burst of outbound connections. The game was reaching out to multiple third-party ad domains before the user had even tapped anything.
+I installed it, launched it, and ran tcpconnect and eCapture in the background. Within the first minute of launch, tcpconnect showed a burst of outbound connections. The game was reaching out to multiple third-party ad domains before the user had even tapped anything.
 
 eCapture intercepted the HTTPS payloads. One of the ad network requests contained this:
 
