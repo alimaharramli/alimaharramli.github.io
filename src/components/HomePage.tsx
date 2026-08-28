@@ -1,35 +1,27 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import type { PostMeta, SiteConfig } from '@/types';
 
-function deobfuscate(encoded: string): string {
-  return encoded.replace('::', '@');
-}
+function ObfuscatedEmail({ parts }: { parts: string }) {
+  const [label, setLabel] = useState('click to reveal');
 
-function ObfuscatedEmail({ encoded }: { encoded: string }) {
-  const ref = useRef<HTMLAnchorElement>(null);
-  const [revealed, setRevealed] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setRevealed(true), 100);
-    return () => clearTimeout(t);
-  }, []);
-
-  const email = revealed ? deobfuscate(encoded) : '';
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const addr = parts.split('::').reverse().join('@');
+    setLabel(addr);
+    window.location.href = 'mail' + 'to:' + addr;
+  };
 
   return (
     <a
-      ref={ref}
-      href={revealed ? `mailto:${email}` : '#'}
+      href="#"
       className="contact-row"
-      onClick={(e) => {
-        if (!revealed) e.preventDefault();
-      }}
+      onClick={handleClick}
     >
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: 'var(--muted)' }}>email</span>
-      <span style={{ fontSize: 16 }}>{email || '...'}</span>
+      <span style={{ fontSize: 16, color: label === 'click to reveal' ? 'var(--accent)' : undefined, cursor: 'pointer' }}>{label}</span>
     </a>
   );
 }
@@ -149,7 +141,7 @@ export function HomePageClient({
         <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
           {Object.entries(siteConfig.contact).map(([key, value]) => {
             if (key === 'email') {
-              return <ObfuscatedEmail key={key} encoded={value} />;
+              return <ObfuscatedEmail key={key} parts={value} />;
             }
             const href = key === 'github' ? `https://github.com/${value.replace('@', '')}` : '#';
             return (
