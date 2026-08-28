@@ -4,14 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { PostMeta, SiteConfig } from '@/types';
 
-function ObfuscatedEmail({ parts }: { parts: string }) {
+function ObfuscatedEmail({ cipher }: { cipher: string }) {
   const [label, setLabel] = useState('click to reveal');
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    const addr = parts.split('::').reverse().join('@');
+    const k = 0x5A;
+    const addr = (cipher.match(/.{2}/g) || [])
+      .map(h => String.fromCharCode(parseInt(h, 16) ^ k))
+      .join('');
     setLabel(addr);
-    window.location.href = 'mail' + 'to:' + addr;
+    window.location.href = String.fromCharCode(109,97,105,108,116,111,58) + addr;
   };
 
   return (
@@ -141,7 +144,7 @@ export function HomePageClient({
         <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
           {Object.entries(siteConfig.contact).map(([key, value]) => {
             if (key === 'email') {
-              return <ObfuscatedEmail key={key} parts={value} />;
+              return <ObfuscatedEmail key={key} cipher={value} />;
             }
             const href = key === 'github' ? `https://github.com/${value.replace('@', '')}` : '#';
             return (

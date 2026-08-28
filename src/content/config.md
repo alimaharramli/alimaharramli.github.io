@@ -15,6 +15,6 @@ links:
   x: "https://x.com"
   linkedin: "https://www.linkedin.com/in/ali-maharramli/"
 contact:
-  email: "gmail.com::alimaharramli0"
+  email: "3b3633373b323b28283b3736336a1a3d373b333674393537"
   github: "@alimaharramli"
 ---
