@@ -1,9 +1,6 @@
 1:"$Sreact.fragment"
-2:I[47257,["/_next/static/chunks/0_8.104pt-y8c.js","/_next/static/chunks/14jp~819j0f4d.js","/_next/static/chunks/00-csyj9a6t-x.js"],"ClientPageRoot"]
-3:I[29306,["/_next/static/chunks/0_8.104pt-y8c.js","/_next/static/chunks/14jp~819j0f4d.js","/_next/static/chunks/00-csyj9a6t-x.js","/_next/static/chunks/167kv93j81m7u.js"],"default"]
-6:I[97367,["/_next/static/chunks/0_8.104pt-y8c.js","/_next/static/chunks/14jp~819j0f4d.js","/_next/static/chunks/00-csyj9a6t-x.js"],"OutletBoundary"]
-7:"$Sreact.suspense"
-0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],[["$","script","script-0",{"src":"/_next/static/chunks/167kv93j81m7u.js","async":true}]],["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"XCHKH_riNob68ObgpVI3e"}
-4:{}
-5:"$0:rsc:props:children:0:props:serverProvidedParams:params"
-8:null
+2:I[22016,["/_next/static/chunks/0pr674i0aazj5.js","/_next/static/chunks/0d3shmwh5_nmn.js"],""]
+3:I[97367,["/_next/static/chunks/0pr674i0aazj5.js","/_next/static/chunks/0d3shmwh5_nmn.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","div",null,{"className":"section-pad","style":{"display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center","minHeight":"60vh","gap":16},"children":[["$","span",null,{"style":{"fontSize":48,"fontWeight":700,"color":"var(--fg)"},"children":"404"}],["$","p",null,{"style":{"fontFamily":"'JetBrains Mono', monospace","fontSize":12,"color":"var(--muted)","letterSpacing":".1em","textTransform":"uppercase"},"children":"Page not found"}],["$","$L2",null,{"href":"/","className":"post-back","style":{"marginTop":16},"children":"← Back to home"}]]}],null,["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"et6LfmJDT1p04MbRAQC-8"}
+5:null
