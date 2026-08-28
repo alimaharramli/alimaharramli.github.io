@@ -15,6 +15,6 @@ links:
   x: "https://x.com"
   linkedin: "https://www.linkedin.com/in/ali-maharramli/"
 contact:
-  email: "hello@example.com"
+  email: "alimaharramli0::gmail.com"
   github: "@alimaharramli"
 ---
