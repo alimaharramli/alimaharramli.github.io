@@ -24,6 +24,10 @@ projects:
     description: "NGINX module that checks login passwords against Have I Been Pwned and sends webhook alerts."
     tech: "C"
     url: "https://github.com/alimaharramli/nginx_hibp"
+  - name: "moff"
+    description: "Offline mobile payments over Bluetooth Low Energy. Two phones, no internet."
+    tech: "Kotlin"
+    url: "https://github.com/alimaharramli/moff"
 links:
   github: "https://github.com/alimaharramli"
   x: "https://x.com"
