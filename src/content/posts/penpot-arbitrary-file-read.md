@@ -1,0 +1,123 @@
+---
+id: "penpot-arbitrary-file-read"
+title: "Reading /etc/passwd by uploading a font to Penpot"
+date: "2026-02-16"
+tag: "security"
+readTime: "5 min read"
+excerpt: "I found an arbitrary file read in Penpot's font upload endpoint. The server trusted that font data chunks were actual file uploads, but io/input-stream treats bare strings as file paths. Sending /etc/passwd as a font chunk reads the file and stores it as a downloadable asset."
+---
+
+[Penpot](https://penpot.app/) is an open-source design tool, basically a self-hosted Figma alternative. While looking at its backend I found a way to read any file on the server by uploading a "font". It was assigned [CVE-2026-26202](https://github.com/penpot/penpot/security/advisories/GHSA-xp3f-g8rq-9px2) and fixed in version 2.13.2.
+
+Here is how it works.
+
+### The font upload endpoint
+
+Penpot lets teams upload custom fonts. The backend has an RPC endpoint called `create-font-variant` that accepts font data in multiple formats (TTF, OTF, WOFF, WOFF2). The data comes in as a key-value map where keys are MIME types like `"font/ttf"` and values are the font file content.
+
+Penpot's backend is written in Clojure. It uses schema validation to check RPC inputs before processing them. The schema for the `data` parameter looked like this:
+
+```clojure
+[:data [:map-of ::sm/text ::sm/any]]
+```
+
+If you have not seen Clojure before, this reads as: `data` is a map (dictionary) where every key must be a text string and every value can be **anything**. No type constraint on the values at all.
+
+That `::sm/any` is the entire vulnerability.
+
+### How chunked uploads work
+
+When you upload a large font, the client can split the file into chunks. The server receives these chunks as a list and stitches them back together. Here is the function that does it:
+
+```clojure
+(process-chunks [chunks]
+  ;; create a temp file to write into
+  (let [tmp     (tmp/tempfile :prefix "penpot.tempfont." :suffix "")
+        ;; open an input stream for each chunk
+        streams (map io/input-stream chunks)
+        streams (Collections/enumeration streams)]
+    ;; concatenate all streams and write to the temp file
+    (with-open [^OutputStream output (io/output-stream tmp)
+                ^InputStream input (SequenceInputStream. streams)]
+      (io/copy input output))
+    tmp))
+```
+
+Line by line: it creates a temp file, then for each chunk in the list it calls `io/input-stream` to turn it into a readable stream. It concatenates all the streams and writes them to the temp file. That temp file eventually gets stored as the font asset.
+
+The critical call is `io/input-stream`. This function comes from Penpot's I/O library (`datoteka.io`) and it behaves differently depending on what you pass it:
+
+- **Pass it a byte array** and it wraps the bytes in a stream. This is the expected case.
+- **Pass it a string** and it treats the string as a **filesystem path** and opens that file for reading.
+
+Both behaviors are by design. The function is meant to be flexible. But the code assumes it will only ever receive byte arrays from the font upload. And the schema says `::sm/any`, which means strings are accepted too.
+
+### The exploit
+
+The calling code decides whether to run `process-chunks` based on whether the value is a list:
+
+```clojure
+(join-chunks [data]
+  (reduce-kv (fn [data mtype content]
+               ;; if the value is a vector (list), process it as chunks
+               (if (vector? content)
+                 (assoc data mtype (process-chunks content))
+                 data))
+             data
+             data))
+```
+
+So if you send the font data with a list value instead of raw bytes, it enters the chunked upload path. And each element of that list gets passed to `io/input-stream`.
+
+Putting it together, the exploit is a single RPC request:
+
+```json
+{
+  "teamId": "<valid-team-uuid>",
+  "data": {
+    "font/ttf": ["/etc/passwd"]
+  },
+  "fontId": "<any-uuid>",
+  "fontFamily": "whatever",
+  "fontWeight": 400,
+  "fontStyle": "normal"
+}
+```
+
+The `data` field has one entry. The key is `"font/ttf"` (a valid font MIME type). The value is a list containing one string: `"/etc/passwd"`.
+
+Here is what happens on the server:
+
+1. Schema validation passes because the key is text and the value is `::sm/any`.
+2. `join-chunks` sees the value is a list and passes it to `process-chunks`.
+3. `process-chunks` calls `io/input-stream` on the string `"/etc/passwd"`.
+4. `io/input-stream` interprets the string as a path and opens `/etc/passwd`.
+5. The file contents get written to a temp file.
+6. The temp file gets persisted to object storage as a font asset.
+7. The server returns a font variant record with a storage ID.
+8. The attacker downloads the "font" asset. The contents are `/etc/passwd`.
+
+Any file readable by the backend process can be exfiltrated this way. Config files, private keys, database credentials, environment variables. In a containerized deployment the damage is limited to the container, but mounted secrets and app configuration are still exposed.
+
+### The fix
+
+The [patch](https://github.com/penpot/penpot/compare/2.13.1...2.13.2) is a one-line schema change:
+
+```clojure
+;; Before (vulnerable): values can be anything
+[:data [:map-of ::sm/text ::sm/any]]
+
+;; After (fixed): values must be bytes or a list of bytes
+[:data [:map-of ::sm/text [:or ::sm/bytes
+                            [::sm/vec ::sm/bytes]]]]
+```
+
+Instead of accepting any type, the values are now restricted to raw bytes or a list of bytes. If you send a string, schema validation rejects the request before it reaches `process-chunks`. The `io/input-stream` path interpretation never fires.
+
+### Why this happened
+
+The root issue is a type confusion. `io/input-stream` is a polymorphic function. It does something safe with bytes and something dangerous with strings. The function is not broken. It is working as designed. The problem is that untrusted input reached it without the right constraints.
+
+Clojure is a dynamically typed language. There is no compiler to catch the mismatch between what `io/input-stream` can receive and what the schema allows through. The schema is the only type boundary for RPC inputs, and it had a gap.
+
+The fix is small because the problem is small. The schema just needed to say what it actually meant: font data is bytes, not arbitrary values.

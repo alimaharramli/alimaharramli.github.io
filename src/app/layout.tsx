@@ -4,7 +4,7 @@ import { LayoutShell } from '@/components/LayoutShell';
 import { getSiteConfig, getAllPosts } from '@/lib/content';
 
 export const metadata: Metadata = {
-  title: 'Ali Maharramli — Security Engineer',
+  title: 'Ali Maharramli',
   description: 'Security engineer writing about appsec, identity, databases, and infrastructure.',
 };
 

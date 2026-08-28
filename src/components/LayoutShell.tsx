@@ -41,21 +41,23 @@ export function LayoutShell({
 
   useEffect(() => {
     if (isPost) { setActiveSection('posts'); return; }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActiveSection(visible[0].target.id);
-      },
-      { rootMargin: '-10% 0px -70% 0px', threshold: 0 }
-    );
     const ids = ['posts', 'about', 'projects', 'contact'];
-    ids.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
+    const onScroll = () => {
+      const doc = document.scrollingElement || document.documentElement;
+      const scrollTop = doc.scrollTop;
+      const atBottom = scrollTop + window.innerHeight >= doc.scrollHeight - 40;
+      const elements = ids.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+      if (elements.length === 0) return;
+      if (atBottom) { setActiveSection(elements[elements.length - 1].id); return; }
+      let current = elements[0].id;
+      for (const el of elements) {
+        if (el.offsetTop - 80 <= scrollTop) current = el.id;
+      }
+      setActiveSection(current);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
   }, [isPost, pathname]);
 
   const scrollTo = (id: string) => {
@@ -86,7 +88,13 @@ export function LayoutShell({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 34 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <h1 style={{ margin: 0, fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, color: 'var(--fg)' }}>
-                <Link href="/" style={{ color: 'var(--fg)' }}>{siteConfig.title}</Link>
+                <a href="/" onClick={(e) => {
+                  e.preventDefault();
+                  if (isPost) { router.push('/'); } else {
+                    const sc = document.scrollingElement || document.documentElement;
+                    sc.scrollTop = 0;
+                  }
+                }} style={{ color: 'var(--fg)', cursor: 'pointer' }}>{siteConfig.title}</a>
               </h1>
               <p style={{ margin: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: 'var(--muted)', letterSpacing: '-0.01em' }}>
                 {siteConfig.subtitle}

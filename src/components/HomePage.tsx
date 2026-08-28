@@ -37,6 +37,7 @@ export function HomePageClient({
   posts: PostMeta[];
 }) {
   const [tag, setTag] = useState('all');
+  const [showCerts, setShowCerts] = useState(false);
   const tags = ['all', ...Array.from(new Set(posts.map((p) => p.tag)))];
   const filtered = tag === 'all' ? posts : posts.filter((p) => p.tag === tag);
 
@@ -94,18 +95,6 @@ export function HomePageClient({
             {siteConfig.bio.map((p, i) => (
               <p key={i} style={{ margin: 0, fontSize: 17, lineHeight: 1.65, color: 'var(--fg2)' }}>{p}</p>
             ))}
-            {siteConfig.credentials.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 14, borderTop: '1px solid var(--line)' }}>
-                {siteConfig.credentials.map((cred) => (
-                  <div key={cred.label} className="cred-row">
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: cred.accent ? 'var(--accent)' : 'var(--muted)' }}>
-                      {cred.label}
-                    </span>
-                    <span style={{ fontSize: 15.5, color: 'var(--fg2)' }}>{cred.description}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--muted)' }}>
             {Object.entries(siteConfig.details).map(([key, value]) => (
@@ -114,6 +103,30 @@ export function HomePageClient({
                 <span style={{ color: 'var(--fg2)' }}>{value}</span>
               </div>
             ))}
+            {siteConfig.credentials.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <button
+                  onClick={() => setShowCerts(!showCerts)}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--line2)', color: 'var(--muted)',
+                    padding: '5px 10px', borderRadius: 6, fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11, cursor: 'pointer', transition: 'color .15s, border-color .15s',
+                  }}
+                >
+                  {showCerts ? '▾' : '▸'} certifications
+                </button>
+                {showCerts && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                    {siteConfig.credentials.map((cred) => (
+                      <div key={cred.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ color: cred.accent ? 'var(--accent)' : 'var(--fg2)', fontSize: 12 }}>{cred.label}</span>
+                        <span style={{ opacity: 0.7, fontSize: 11 }}>{cred.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -146,7 +159,7 @@ export function HomePageClient({
             if (key === 'email') {
               return <ObfuscatedEmail key={key} cipher={value} />;
             }
-            const href = key === 'github' ? `https://github.com/${value.replace('@', '')}` : '#';
+            const href = key === 'github' ? `https://github.com/${value.replace('@', '')}` : key === 'linkedin' ? `https://www.linkedin.com/in/${value}` : '#';
             return (
               <a key={key} href={href} className="contact-row" target="_blank" rel="noopener noreferrer">
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: 'var(--muted)' }}>{key}</span>
@@ -156,7 +169,7 @@ export function HomePageClient({
           })}
         </div>
         <p style={{ margin: '34px 0 0 0', fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: 'var(--muted)', opacity: 0.75 }}>
-          © {new Date().getFullYear()} — built with Next.js, hosted on GitHub Pages.
+          © {new Date().getFullYear()}
         </p>
       </section>
     </div>
