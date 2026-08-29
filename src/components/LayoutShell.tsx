@@ -23,13 +23,14 @@ export function LayoutShell({
   const currentPostId = isPost ? pathname.split('/').pop() : null;
 
   useEffect(() => {
+    let picked: 'dark' | 'light' = 'dark';
     try {
       const saved = localStorage.getItem('blog-theme');
-      if (saved === 'light' || saved === 'dark') {
-        setTheme(saved);
-        document.documentElement.setAttribute('data-theme', saved);
-      }
+      if (saved === 'light' || saved === 'dark') picked = saved;
+      else if (window.matchMedia('(prefers-color-scheme: light)').matches) picked = 'light';
     } catch {}
+    setTheme(picked);
+    document.documentElement.setAttribute('data-theme', picked);
   }, []);
 
   const toggleTheme = useCallback(() => {
